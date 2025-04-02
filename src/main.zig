@@ -12,7 +12,9 @@ pub fn generate_random_password(allocator: std.mem.Allocator, length: u8) ![]u8 
     @memset(result, 0);
     var choices: [4]u8 = undefined;
     @memset(&choices, 0);
-    const random = std.Random.DefaultPrng.random(@constCast(&std.Random.DefaultPrng.init(@intCast(std.time.timestamp()))));
+    const time = std.time.timestamp();
+    var seed = std.Random.DefaultPrng.init(@intCast(time));
+    const random = std.Random.DefaultPrng.random(&seed);
     for (0..length) |i| {
         choices[@intFromEnum(CharacterType.Symbol)] = SYMBOLS[random.intRangeAtMost(u8, 0, SYMBOLS.len - 1)];
         choices[@intFromEnum(CharacterType.AlphabetUpper)] = random.intRangeAtMost(u8, 'A', 'Z');
