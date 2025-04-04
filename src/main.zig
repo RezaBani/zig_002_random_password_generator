@@ -7,7 +7,7 @@ pub const ArgsError = error{
 
 pub const ArgumentsOrder = enum(usize) {
     // ExecutableName = 0,
-    Count = 1,
+    Length = 1,
 };
 
 pub const CommandLineArguments = struct {
@@ -35,12 +35,12 @@ pub fn main() !void {
         },
         std.fmt.ParseIntError.InvalidCharacter => {
             std.debug.print("{}\n", .{err});
-            std.debug.print("argument {s} can't be converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Count)]});
+            std.debug.print("argument {s} can't be converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Length)]});
             std.process.exit(1);
         },
         std.fmt.ParseIntError.Overflow => {
             std.debug.print("{}\n", .{err});
-            std.debug.print("argument {s} too big when converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Count)]});
+            std.debug.print("argument {s} too big when converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Length)]});
             std.process.exit(1);
         },
     };
@@ -73,7 +73,7 @@ pub fn parseArgs(args: [][]const u8) !CommandLineArguments {
         return ArgsError.TooManyArgs;
     }
     const length = if (args.len > 1)
-        try std.fmt.parseUnsigned(u8, args[@intFromEnum(ArgumentsOrder.Count)], 10)
+        try std.fmt.parseUnsigned(u8, args[@intFromEnum(ArgumentsOrder.Length)], 10)
     else
         DEFAULT_LENGTH;
     return CommandLineArguments{
