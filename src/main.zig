@@ -1,68 +1,82 @@
 const std = @import("std");
+const lib = @import("lib.zig");
 
-const CharacterType = enum(u8) { Symbol = 0, AlphabetUpper = 1, AlphabetLower = 2, Number = 3 };
+pub const ArgsError = error{
+    TooManyArgs,
+};
 
-const SYMBOLS = "!@#$%&*()?/[]{}-+_=<>.,";
-const ALPHABETUPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const ALPHABETLOWER = "abcdefghijklmnopqrstuvwxyz";
-const NUMBERS = "0123456789";
+pub const ArgumentsOrder = enum(usize) {
+    // ExecutableName = 0,
+    Count = 1,
+};
 
-pub fn generate_random_password(allocator: std.mem.Allocator, length: u8) ![]u8 {
-    var result = try allocator.alloc(u8, length);
-    @memset(result, 0);
-    var choices: [4]u8 = undefined;
-    @memset(&choices, 0);
-    const time = std.time.timestamp();
-    var seed = std.Random.DefaultPrng.init(@intCast(time));
-    const random = std.Random.DefaultPrng.random(&seed);
-    for (0..length) |i| {
-        choices[@intFromEnum(CharacterType.Symbol)] = SYMBOLS[random.intRangeAtMost(u8, 0, SYMBOLS.len - 1)];
-        choices[@intFromEnum(CharacterType.AlphabetUpper)] = random.intRangeAtMost(u8, 'A', 'Z');
-        choices[@intFromEnum(CharacterType.AlphabetLower)] = random.intRangeAtMost(u8, 'a', 'z');
-        choices[@intFromEnum(CharacterType.Number)] = random.intRangeAtMost(u8, '0', '9');
-        const choice = if (result[0] == 0)
-            random.intRangeAtMost(u8, 0, choices.len - 1)
-        else if (!containsAtLeastOnce(result, SYMBOLS))
-            @intFromEnum(CharacterType.Symbol)
-        else if (!containsAtLeastOnce(result, ALPHABETUPPER))
-            @intFromEnum(CharacterType.AlphabetUpper)
-        else if (!containsAtLeastOnce(result, ALPHABETLOWER))
-            @intFromEnum(CharacterType.AlphabetLower)
-        else if (!containsAtLeastOnce(result, NUMBERS))
-            @intFromEnum(CharacterType.Number)
-        else
-            random.intRangeAtMost(u8, 0, choices.len - 1);
-        result[i] = choices[choice];
-    }
-    return result;
-}
+pub const CommandLineArguments = struct {
+    length: u8,
+};
+
+pub const DEFAULT_LENGTH: u8 = 16;
+pub const MAX_ARGS_COUNT: usize = 2;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    const password = try generate_random_password(allocator, 16);
+    const rawArgs = readArgs(allocator) catch |err| switch (err) {
+        std.mem.Allocator.Error.OutOfMemory => {
+            std.debug.print("{}\n", .{err});
+            std.debug.print("Not enough emory to store args", .{});
+            std.process.exit(1);
+        },
+    };
+    const args = parseArgs(rawArgs) catch |err| switch (err) {
+        ArgsError.TooManyArgs => {
+            std.debug.print("{}\n", .{err});
+            std.debug.print("This executable accepts only {d} arguments but more than {d} argument is provided!\n", .{ MAX_ARGS_COUNT - 1, MAX_ARGS_COUNT - 1 });
+            std.process.exit(1);
+        },
+        std.fmt.ParseIntError.InvalidCharacter => {
+            std.debug.print("{}\n", .{err});
+            std.debug.print("argument {s} can't be converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Count)]});
+            std.process.exit(1);
+        },
+        std.fmt.ParseIntError.Overflow => {
+            std.debug.print("{}\n", .{err});
+            std.debug.print("argument {s} too big when converted to unsigned interger\n", .{rawArgs[@intFromEnum(ArgumentsOrder.Count)]});
+            std.process.exit(1);
+        },
+    };
+    const password = lib.generate_random_password(allocator, args.length) catch |err| switch (err) {
+        std.mem.Allocator.Error.OutOfMemory => {
+            std.debug.print("{}\n", .{err});
+            std.debug.print("Not enough emory to store password", .{});
+            std.process.exit(1);
+        },
+    };
     defer allocator.free(password);
     std.debug.print("{s}\n", .{password});
 }
 
-test "simple test" {
-    const length = 20;
-    const allocator = std.testing.allocator;
-    const password = try generate_random_password(allocator, length);
-    defer allocator.free(password);
-    try std.testing.expect(password.len == length);
-    try std.testing.expect(containsAtLeastOnce(password, SYMBOLS));
-    try std.testing.expect(containsAtLeastOnce(password, ALPHABETUPPER));
-    try std.testing.expect(containsAtLeastOnce(password, ALPHABETLOWER));
-    try std.testing.expect(containsAtLeastOnce(password, NUMBERS));
+fn readArgs(allocator: std.mem.Allocator) ![][]const u8 {
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+    var argsArray = std.ArrayList([]u8).init(allocator);
+    while (args.next()) |arg| {
+        const buf = try allocator.alloc(u8, arg.len);
+        @memcpy(buf, arg);
+        try argsArray.append(buf);
+    }
+    const slice = try argsArray.toOwnedSlice();
+    return slice;
 }
 
-fn containsAtLeastOnce(password: []const u8, characters: []const u8) bool {
-    for (characters) |character| {
-        const needle = [_]u8{character};
-        if (std.mem.containsAtLeast(u8, password, 1, &needle)) {
-            return true;
-        }
+pub fn parseArgs(args: [][]const u8) !CommandLineArguments {
+    if (args.len > MAX_ARGS_COUNT) {
+        return ArgsError.TooManyArgs;
     }
-    return false;
+    const length = if (args.len > 1)
+        try std.fmt.parseUnsigned(u8, args[@intFromEnum(ArgumentsOrder.Count)], 10)
+    else
+        DEFAULT_LENGTH;
+    return CommandLineArguments{
+        .length = length,
+    };
 }
