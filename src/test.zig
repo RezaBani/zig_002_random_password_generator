@@ -1,6 +1,6 @@
 const std = @import("std");
-const main = @import("main.zig");
-const lib = @import("lib.zig");
+const exe = @import("zig_002_password_generator_exe");
+const lib = @import("zig_002_password_generator_lib");
 
 test "lib test" {
     const length = 20;
@@ -19,17 +19,17 @@ test "main test" {
     const argumentSetBad: [][]const u8 = @constCast(&[_][]const u8{ "executableName", "garbage" });
     const argumentSetBadExtra: [][]const u8 = @constCast(&[_][]const u8{ "executableName", "20", "extra" });
 
-    try std.testing.expectEqual(main.DEFAULT_LENGTH, (try main.parseArgs(argumentSetOkEmpty)).length);
-    try std.testing.expectEqual(try std.fmt.parseUnsigned(usize, argumentSetOkOne[@intFromEnum(main.ArgumentsOrder.Length)], 10), (try main.parseArgs(argumentSetOkOne)).length);
-    try std.testing.expectError(std.fmt.ParseIntError.InvalidCharacter, main.parseArgs(argumentSetBad));
-    try std.testing.expectError(main.ArgsError.TooManyArgs, main.parseArgs(argumentSetBadExtra));
+    try std.testing.expectEqual(exe.DEFAULT_LENGTH, (try exe.parseArgs(argumentSetOkEmpty)).length);
+    try std.testing.expectEqual(try std.fmt.parseUnsigned(usize, argumentSetOkOne[@intFromEnum(exe.ArgumentsOrder.Length)], 10), (try exe.parseArgs(argumentSetOkOne)).length);
+    try std.testing.expectError(std.fmt.ParseIntError.InvalidCharacter, exe.parseArgs(argumentSetBad));
+    try std.testing.expectError(exe.ArgsError.TooManyArgs, exe.parseArgs(argumentSetBadExtra));
 
     var okArgs = std.ArrayList([][]const u8).init(allocator);
     defer okArgs.deinit();
     try okArgs.append(argumentSetOkOne);
     try okArgs.append(argumentSetOkEmpty);
     for (okArgs.items) |rawArgs| {
-        const args = try main.parseArgs(rawArgs);
+        const args = try exe.parseArgs(rawArgs);
         const password = try lib.generate_random_password(allocator, args.length);
         defer allocator.free(password);
         try std.testing.expectEqual(password.len, args.length);
